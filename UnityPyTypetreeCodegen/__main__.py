@@ -369,11 +369,11 @@ def __main__():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--files",
-        help="Load typetree dump from json file or assembly",
+        help="Load typetree dump from game assembly folder containing the DLLs",
     )
     parser.add_argument(
         "--json",
-        help="Tree dump in json format",
+        help="Load tree dump in json format",
     )
     parser.add_argument(
         "--assembly",
