@@ -362,6 +362,7 @@ def process_typetree(fullname_nodes: Dict[str, List[TypeTreeNode]], outdir: str)
     )
 
 
+import re, logging
 from UnityPy.helpers.TypeTreeGenerator import TypeTreeGenerator
 
 
@@ -373,11 +374,7 @@ def __main__():
     )
     parser.add_argument(
         "--json",
-        help="Load tree dump in json format",
-    )
-    parser.add_argument(
-        "--assembly",
-        help="Assembly to use for typetree generation",
+        help="Load tree dump in json format {str[fullname]: List[TypeTreeNode]},...",
     )
     parser.add_argument(
         "--unity-version",
@@ -385,13 +382,25 @@ def __main__():
         default="2022.3.21f1",
     )
     parser.add_argument(
+        "--filter",
+        help="Filter classnames by regex",
+        default=".*",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default="WARNING",
+    )
+    parser.add_argument(
         "--outdir",
         help="Output directory for generated code",
         default="generated",
     )
     args = parser.parse_args()
+    logging.basicConfig(level=args.log_level)
     shutil.rmtree(args.outdir, ignore_errors=True)
     os.makedirs(args.outdir, exist_ok=True)
+    typetree = dict()
     if args.files:
         generator = TypeTreeGenerator(args.unity_version)
         generator.load_local_dll_folder(args.files)
@@ -403,12 +412,13 @@ def __main__():
                 typetree[fullname] = nodes
             except Exception as e:
                 logger.error(f"Failed to generate typetree for {module}.{fullname}")
-        process_typetree(typetree, args.outdir)
-        return 0
     if args.json:
-        with open(args.file, "r") as f:
+        with open(args.json, "r") as f:
             typetree = json.load(f)
-            process_typetree(typetree, args.outdir)
+    if typetree:
+        regex = re.compile(args.filter)
+        typetree = {k: v for k, v in typetree.items() if regex.match(k)}
+        process_typetree(typetree, args.outdir)
         return 0
     return -1
 
