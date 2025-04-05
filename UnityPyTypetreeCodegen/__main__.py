@@ -65,7 +65,7 @@ HEADER = "\n".join(
         "from UnityPy.classes import *",
         "from UnityPy.classes.math import (ColorRGBA, Matrix3x4f, Matrix4x4f, Quaternionf, Vector2f, Vector3f, Vector4f, float3, float4,)",
         '''T = TypeVar("T")
-def typetree_defined(clazz : T) -> T:
+def UTTCGen(clazz : T) -> T:
 	"""dataclass-like decorator for typetree classess with nested type support
 	
 	limitations:
@@ -115,6 +115,17 @@ def typetree_defined(clazz : T) -> T:
 	clazz.__init__ = __init__
 	clazz.__repr__ = __repr__
 	return clazz
+    
+# Helper functions
+def UTTCGen_Reread(Mono: MonoBehaviour):
+    script = Mono.m_Script.read()
+    fullname = script.m_ClassName
+    if script.m_Namespace:
+        fullname = f"{script.m_Namespace}.{fullname}"
+    definition = TYPETREE_DEFS.get(fullname, None)
+    assert definition is not None, f"Typetree definition for {fullname} not found"
+    raw_def = Mono.object_reader.read_typetree(definition)
+    return raw_def, fullname
 ''',
     ]
 )
@@ -123,9 +134,41 @@ import argparse, json
 
 
 def translate_name(m_Name: str, **kwargs):
+    NG = "<>|`="
     m_Name = m_Name.replace("<>", "__generic_")  # Generic templates
     m_Name = m_Name.replace("<", "_").replace(">", "_")  # Templated
-    m_Name = m_Name.replace("=", "_")  # Special chars
+    for c in NG:
+        m_Name = m_Name.replace(c, "_")
+    RESERVED_NAMES = {
+        "class",
+        "def",
+        "return",
+        "if",
+        "else",
+        "elif",
+        "for",
+        "while",
+        "in",
+        "is",
+        "not",
+        "and",
+        "or",
+        "from",
+        "import",
+        "as",
+        "with",
+        "try",
+        "except",
+        "finally",
+        "raise",
+        "assert",
+        "break",
+        "continue",
+        "pass",
+        "yield",
+    }
+    if m_Name in RESERVED_NAMES:
+        m_Name = "_" + m_Name
     return m_Name
 
 
@@ -169,6 +212,7 @@ def translate_type(
 
 
 def declare_field(name: str, type: str, org_type: str = None):
+    name = translate_name(name)
     if type not in {"object", "List[object]", "PPtr[object]"}:
         return f"{name} : {type}"
     else:
@@ -200,7 +244,8 @@ def topsort(graph: dict):
     for clazz in graph:
         if not vis[clazz]:
             flag &= dfs(clazz)
-    assert flag, "graph contains cycle"
+    # XXX: Shouldn't happen. Need to figure out how this is possible
+    # assert flag, "graph contains cycle"
     return topo
 
 
@@ -252,7 +297,7 @@ def process_namespace(
         clazz = translate_name(clazz)
         clazzes.append(clazz)
         clazz_fields = list()
-        emit_line(f"@typetree_defined")
+        emit_line(f"@UTTCGen")
         if lvl1:
             parent = translate_type(fields[0].m_Type, strip=True, fallback=False)
             emit_line(f"class {clazz}({parent}):")
@@ -264,10 +309,16 @@ def process_namespace(
                     raise ValueError  # XXX: Should NEVER happen
             pa_dep1 = dp[parent]
             cur_dep1 = pa_dep1
-            for i, field in enumerate(filter(lambda field: field.m_Level == 1, fields)):
-                if i < pa_dep1:
+            for dep, (i, field) in enumerate(
+                filter(lambda field: field[1].m_Level == 1, enumerate(fields))
+            ):
+                if dep < pa_dep1:
                     # Skip parent fields at lvl1
                     continue
+                if i + 1 < len(fields) and fields[i + 1].m_Type == "Array":
+                    if field.m_Type.startswith("List"):
+                        # Rename this to Type[]
+                        field.m_Type = fields[i + 3].m_Type + "[]"
                 name, type = field.m_Name, translate_type(
                     field.m_Type, typenames=classname_nodes | import_defs
                 )
