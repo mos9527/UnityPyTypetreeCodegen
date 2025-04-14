@@ -13,15 +13,15 @@ Used in
 Example usage in `rla_transport_defines`
 ```python
 env = UnityPy.load(...)
-from generated.Sekai.Streaming import TransportDefine
-from generated import UTTCGen_AsInstance
+from generated import UTTCGen_AsInstance, UTTCGen_GetClass
 
 for reader in filter(lambda x: x.type == ClassIDType.MonoBehaviour, env.objects):
     name = reader.peek_name()
-    if name.startswith("TransportDefine"):
-        instance = UTTCGen_AsInstance(reader, "Sekai.Streaming.TransportDefine")
-        # ...or `instance = UTTCGen_AsInstance(reader)` is `m_Script` field is accessible
-        instance : TransportDefine
+    if name.startswith("TransportDefine"):        
+        from generated.Sekai.Streaming import TransportDefine
+        # ...or TransportDefine = UTTCGen_GetClass("Sekai.Streaming.TransportDefine")
+        # ...or TransportDefine = UTTCGen_GetClass(reader.read(check_read=False))
+        instance = UTTCGen_AsInstance(TransportDefine, reader)                
         print(f'"{name}":({instance.validBones}, {instance.validBlendShapes}),')
         # Possibly modify on the instance itself and saving it is also possible
         instance.validBones[0] = "BadBone"
