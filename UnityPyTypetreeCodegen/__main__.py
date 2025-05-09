@@ -128,7 +128,7 @@ def UTTCGen(fullname: str, typetree: dict):
     return __inner
 
 # Helper functions
-def UTTCGen_GetClasss(src: MonoBehaviour | str) -> Type:
+def UTTCGen_GetClass(src: MonoBehaviour | str) -> Type:
     """Get the class definition from MonoBehaviour or a full type name."""
     if isinstance(src, MonoBehaviour):
         script = src.m_Script.read()
