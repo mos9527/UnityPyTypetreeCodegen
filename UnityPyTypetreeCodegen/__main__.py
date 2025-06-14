@@ -87,18 +87,21 @@ def UTTCGen(fullname: str, typetree: dict):
                     if type(sub) == str:
                         sub = eval(sub) # attrs turns these into strings...why?
                     while sub.__name__ == "Optional":
-                        sub = sub.__args__[0]  # Reduce Optional[T] -> T
-                    reduce_arg = getattr(sub, "__args__", [None])[0]
+                        sub = sub.__args__[0]  # Reduce Optional[T] -> T								
+                    reduce_arg = getattr(sub, "__args__", [None])[0]					
                     if k in REFERENCED_ARGS: # Directly refcounted
                         reduce_arg = sub = lambda x: x                         
                     if reduce_arg is not None and isinstance(d[k], list):
-                        if hasattr(reduce_arg, "__annotations__"):
+                        if hasattr(reduce_arg, "__annotations__") or hasattr(reduce_arg, "__args__"):
                             setattr(self, k, [reduce_arg(**x) for x in d[k]])
                         else:
                             setattr(self, k, [reduce_arg(x) for x in d[k]])
                     elif reduce_arg is not None and isinstance(d[k], dict) and hasattr(sub, "__annotations__"):
                         setattr(self, k, sub(**d[k]))
                     else:
+                        # Reduce typings to respective types
+                        if hasattr(sub, "__origin__") and sub.__origin__ is not None:
+	                        sub = sub.__origin__		
                         if isinstance(d[k], dict):
                             setattr(self, k, sub(**d[k]))
                         else:
@@ -126,6 +129,7 @@ def UTTCGen(fullname: str, typetree: dict):
         UTTCG_Classes[fullname] = clazz
         return clazz
     return __inner
+
 
 # Helper functions
 def UTTCGen_GetClass(src: MonoBehaviour | str) -> Type:
@@ -361,9 +365,7 @@ def process_namespace(
                     # Skip parent fields at lvl1
                     continue
                 if i + 1 < len(fields) and fields[i + 1].m_Type == "Array":
-                    if field.m_Type.startswith("List"):
-                        # Rename this to Type[]
-                        field.m_Type = fields[i + 3].m_Type + "[]"
+                    field.m_Type = fields[i + 3].m_Type + "[]"
                 name, type = field.m_Name, translate_type(
                     field.m_Type, typenames=classname_nodes | import_defs
                 )
