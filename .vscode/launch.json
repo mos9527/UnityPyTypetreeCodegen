@@ -10,13 +10,11 @@
             "type": "debugpy",
             "request": "launch",
             "module": "UnityPyTypetreeCodegen",
-            "args": [
-                "--files",
-                "D:\\Reverse\\proseka_reverse\\game_binary\\v510\\exported\\shim",
-                // "--json",
-                // "c:\\Users\\mos9527\\TypetreeTests\\Test\\TypeTree.json",
-                "--filter",
-                "(Live2D|Cubism)+.*"
+            "args": [                
+                "--il2cpp",
+                "D:\\Reverse\\proseka_reverse\\UntitledCharts\\scripts\\.temp\\typetree\\libil2cpp.so",
+                "--metadata",
+                "D:\\Reverse\\proseka_reverse\\UntitledCharts\\scripts\\.temp\\typetree\\global-metadata.dat"
             ]
         }
     ]
