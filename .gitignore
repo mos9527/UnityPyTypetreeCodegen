@@ -5,3 +5,5 @@ __pycache__/
 dump
 generated/
 .DS_Store
+.temp
+.typetree.json

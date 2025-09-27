@@ -42,6 +42,7 @@ BASE_TYPE_MAP = {
     "string": "str",
     "TypelessData": "bytes",
     # -- Extra
+    "Array": "List[object]",
     "Byte[]": "bytes",
     "Byte": "int",
     "String": "str",
@@ -264,7 +265,7 @@ from io import TextIOWrapper
 def topsort(graph: dict):
     # Sort the keys in topological order
     # We don't assume the guarantee otherwise
-    graph = {k: list(sorted(v)) for k, v in graph.items()}
+    graph = {k: list(sorted((i for i in v if i != k))) for k, v in graph.items()}
     vis = defaultdict(lambda: 0)
     topo = list()
 
@@ -325,7 +326,6 @@ def process_namespace(
     clazzes = list()
 
     logger.info(f"Subpass 2: Generating code for {namespace}")
-    dp = defaultdict(lambda: -1)
     for clazz in topo:
         fullname = f"{namespace}.{clazz}" if namespace else clazz
         fields = classname_nodes.get(clazz, None)
@@ -334,8 +334,6 @@ def process_namespace(
                 f"Class {clazz} has no fields defined in TypeTree dump, skipped"
             )
             continue
-        # Heuristic: If there is a lvl1 field, it's a subclass
-        lvl1 = list(filter(lambda field: field.m_Level == 1, fields))
         clazz = translate_name(clazz)
         clazzes.append(clazz)
         clazz_fields = list()
@@ -347,42 +345,20 @@ def process_namespace(
 
         clazz_typetree = json.dumps(fields, default=__encoder)
         emit_line(f"@UTTCGen('{fullname}', {clazz_typetree})")
-        if lvl1:
-            parent = translate_type(fields[0].m_Type, strip=True, fallback=False)
-            emit_line(f"class {translate_name(clazz)}({translate_name(parent)}):")
-            if dp[parent] == -1:
-                # Reuse parent's fields with best possible effort
-                if pa_dep1 := getattr(UnityBuiltin, parent, None):
-                    dp[parent] = len(pa_dep1.__annotations__)
-                else:
-                    raise ValueError  # XXX: Should NEVER happen
-            pa_dep1 = dp[parent]
-            cur_dep1 = pa_dep1
-            for dep, (i, field) in enumerate(
-                filter(lambda field: field[1].m_Level == 1, enumerate(fields))
-            ):
-                if dep < pa_dep1:
-                    # Skip parent fields at lvl1
-                    continue
-                if i + 1 < len(fields) and fields[i + 1].m_Type == "Array":
-                    field.m_Type = fields[i + 3].m_Type + "[]"
-                name, type = field.m_Name, translate_type(
-                    field.m_Type, typenames=classname_nodes | import_defs
-                )
-                emit_line(f"\t{declare_field(name, type, field.m_Type)}")
-                clazz_fields.append((name, type, field.m_Type))
-                cur_dep1 += 1
-            dp[clazz] = cur_dep1
-        else:
-            # No inheritance
-            emit_line(f"class {clazz}:")
-            for field in fields:
-                name, type = field.m_Name, translate_type(
-                    field.m_Type, typenames=classname_nodes | import_defs
-                )
-                emit_line(f"\t{declare_field(name, type, field.m_Type)}")
-                clazz_fields.append((name, type))
-            dp[clazz] = len(fields)
+        emit_line(f"class {clazz}:")
+        for field in fields:
+            if field.m_Type == clazz:
+                continue
+            if field.m_Level > 1:
+                # Nested type. We should have already defined it
+                # with type hints
+                continue
+            name, type = field.m_Name, translate_type(
+                field.m_Type, typenames=classname_nodes | import_defs
+            )
+            emit_line(f"\t{declare_field(name, type, field.m_Type)}")
+            clazz_fields.append((name, type))
+
         if not clazz_fields:
             # Empty class. Consider MRO
             emit_line("\tpass")
@@ -464,7 +440,7 @@ def __main__():
     parser.add_argument(
         "--backend",
         help="Backend to use for code generation",
-        default="AssetRipper",
+        default="AssetStudio",
     )
     parser.add_argument(
         "--filter",
@@ -476,8 +452,8 @@ def __main__():
         help="[JSON] Load tree dump in json format {str[fullname]: List[TypeTreeNode]},...",
     )
     parser.add_argument(
-        "--asm",
-        help="[Asm] Load typetree dump from game assembly DLL",
+        "--asm-dir",
+        help="[Asm] Load typetree dump from game assembly DLL folder",
         type=str
     )
     parser.add_argument(
@@ -508,12 +484,23 @@ def __main__():
     gen = TypeTreeGenerator(args.unity_version, args.backend)
     def populate_gen():
         # https://github.com/UnityPy-Org/TypeTreeGeneratorAPI/pull/1
-        for asm,clz in gen.get_monobehavior_definitions():
-            node = gen.get_nodes_as_json(asm, clz)
-            pass
-    if args.asm:
-        print("Loading .NET Assembly", args.asm)
-        gen.load_dll(args.asm)
+        for asm,clz in gen.get_class_definitions():
+            try:
+                node = gen.get_nodes_as_json(asm, clz)
+                node = json.loads(node)
+                typetree[clz] = node
+            except Exception as e:
+                logger.warning(f"Skipping nodes for {asm}.{clz}: {e}")
+    if args.asm_dir:
+        print("Loading .NET Assemblies", args.asm_dir)
+        for dll in os.listdir(args.asm_dir):
+            if not dll.lower().endswith(".dll"):
+                continue
+            try:
+                print(f"Loading {dll}")
+                gen.load_dll(open(os.path.join(args.asm_dir, dll), "rb").read())
+            except Exception as e:
+                logger.warning(f"Skipping {dll}: {e}")
         populate_gen()
     elif args.il2cpp and args.metadata:
         print("Loading IL2CPP", args.il2cpp, args.metadata)
@@ -526,6 +513,8 @@ def __main__():
     else:
         raise ValueError("No valid input source specified.")
     if typetree:
+        with open(".typetree.json", "w") as f:
+            json.dump(typetree, f, indent=4)
         regex = re.compile(args.filter)
         typetree = {k: v for k, v in typetree.items() if regex.match(k)}
         process_typetree(typetree, args.outdir)

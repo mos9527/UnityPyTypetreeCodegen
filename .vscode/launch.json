@@ -6,16 +6,36 @@
     "configurations": [
 
         {
-            "name": "Python Debugger: Module",
+            "name": "Python Debugger: Sekai 5.5.0 JP",
             "type": "debugpy",
             "request": "launch",
             "module": "UnityPyTypetreeCodegen",
             "args": [                
                 "--il2cpp",
-                "D:\\Reverse\\proseka_reverse\\UntitledCharts\\scripts\\.temp\\typetree\\libil2cpp.so",
+                "C:\\Users\\mos9527\\UntitledCharts\\scripts\\.temp\\dump\\libil2cpp.so",
                 "--metadata",
-                "D:\\Reverse\\proseka_reverse\\UntitledCharts\\scripts\\.temp\\typetree\\global-metadata.dat"
+                "C:\\Users\\mos9527\\UntitledCharts\\scripts\\.temp\\dump\\global-metadata.dat"
             ]
-        }
+        },
+        {
+            "name": "Python Debugger: Live2D demo",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "UnityPyTypetreeCodegen",
+            "args": [                
+                "--asm-dir",
+                ".temp\\dummy"
+            ]
+        },
+        {
+            "name": "Python Debugger: JSON",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "UnityPyTypetreeCodegen",
+            "args": [                
+                "--json",
+                ".typetree.json"
+            ]
+        },
     ]
 }
