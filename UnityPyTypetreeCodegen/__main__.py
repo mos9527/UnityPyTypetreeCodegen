@@ -52,13 +52,85 @@ BASE_TYPE_MAP = {
     "Vector3": "Vector3f",
     "Vector4": "Vector4f",
     "Quaternion": "Quaternionf",
-    "Object": "object",
-    "Array": "list",
+    "Object": "object",    
     "Type": "type",
     "MethodInfo": "object",
     "PropertyInfo": "object",
 }
-
+Typetree_MonoBehaviour = [
+    {
+      "m_Type": "MonoBehaviour",
+      "m_Name": "Base",
+      "m_MetaFlag": 0,
+      "m_Level": 0
+    },
+    {
+      "m_Type": "PPtr<GameObject>",
+      "m_Name": "m_GameObject",
+      "m_MetaFlag": 0,
+      "m_Level": 1
+    },
+    {
+      "m_Type": "int",
+      "m_Name": "m_FileID",
+      "m_MetaFlag": 0,
+      "m_Level": 2
+    },
+    {
+      "m_Type": "SInt64",
+      "m_Name": "m_PathID",
+      "m_MetaFlag": 0,
+      "m_Level": 2
+    },
+    {
+      "m_Type": "UInt8",
+      "m_Name": "m_Enabled",
+      "m_MetaFlag": 16384,
+      "m_Level": 1
+    },
+    {
+      "m_Type": "PPtr<MonoScript>",
+      "m_Name": "m_Script",
+      "m_MetaFlag": 0,
+      "m_Level": 1
+    },
+    {
+      "m_Type": "int",
+      "m_Name": "m_FileID",
+      "m_MetaFlag": 0,
+      "m_Level": 2
+    },
+    {
+      "m_Type": "SInt64",
+      "m_Name": "m_PathID",
+      "m_MetaFlag": 0,
+      "m_Level": 2
+    },
+    {
+      "m_Type": "string",
+      "m_Name": "m_Name",
+      "m_MetaFlag": 0,
+      "m_Level": 1
+    },
+    {
+      "m_Type": "Array",
+      "m_Name": "Array",
+      "m_MetaFlag": 16384,
+      "m_Level": 2
+    },
+    {
+      "m_Type": "int",
+      "m_Name": "size",
+      "m_MetaFlag": 0,
+      "m_Level": 3
+    },
+    {
+      "m_Type": "char",
+      "m_Name": "data",
+      "m_MetaFlag": 0,
+      "m_Level": 3
+    }
+]
 # XXX: Can't use attrs here since subclassing MonoBehavior and such - though defined by the typetree dump
 # seem to be only valid if the class isn't a property of another class
 # In which case the MonoBehavior attributes are inherited by the parent class and does not
@@ -72,9 +144,9 @@ HEADER = "\n".join(
         "from UnityPy.files.ObjectReader import ObjectReader",
         "from UnityPy.classes import *",
         "from UnityPy.classes.math import (ColorRGBA, Matrix3x4f, Matrix4x4f, Quaternionf, Vector2f, Vector3f, Vector4f, float3, float4,)",
-        '''
+        '''           
 UTTCG_Classes = dict()
-def UTTCGen(fullname: str, typetree: dict):
+def UTTCGen(fullname: str, typetree: List[dict]):
     """dataclass-like decorator for typetree classess with nested type support
     
     limitations:
@@ -109,7 +181,17 @@ def UTTCGen(fullname: str, typetree: dict):
                         if hasattr(sub, "__origin__") and sub.__origin__ is not None:
 	                        sub = sub.__origin__		
                         if isinstance(d[k], dict):
-                            setattr(self, k, sub(**d[k]))
+                            # Special cases
+                            # Color with `rgba` field
+                            if sub == ColorRGBA and 'rgba' in d[k]:
+                                rgba = d[k]['rgba']
+                                r = ((rgba >> 24) & 0xFF) / 255
+                                g = ((rgba >> 16) & 0xFF) / 255
+                                b = ((rgba >> 8) & 0xFF) / 255
+                                a = (rgba & 0xFF) / 255                                
+                                setattr(self, k, sub(r, g, b, a))
+                            else:
+                                setattr(self, k, sub(**d[k]))
                         else:
                             setattr(self, k, sub(d[k]))
             def reduce_base(clazz, **d):	
@@ -128,13 +210,14 @@ def UTTCGen(fullname: str, typetree: dict):
         def __save(self):
             self.object_reader.save_typetree(self, self.__typetree__)
         clazz.__init__ = __init__
-        clazz.__repr__ = __repr__
+        clazz.__repr__ = __repr__        
         clazz.__typetree__ = typetree
         clazz.__fullname__ = fullname
         clazz.save = __save
         UTTCG_Classes[fullname] = clazz
         return clazz
     return __inner
+
 
 
 # Helper functions
@@ -261,6 +344,11 @@ def declare_field(name: str, type: str, org_type: str = None):
     if type not in {"object", "List[object]", "PPtr[object]"}:
         return f"{name} : {type}"
     else:
+        # We'd skip parsing these further if we don't know the type
+        if type == "object":
+            type = 'dict'
+        if type == "List[object]":
+            type = 'List[dict]'
         return f"{name} : {type} # XXX: Fallback of {org_type}"
 
 
@@ -372,9 +460,7 @@ def process_namespace(
                     continue # Nested                
                 if dep < pa_dep1:
                     # Skip parent fields at lvl1
-                    continue
-                if i + 1 < len(fields) and fields[i + 1].m_Type == "Array":
-                    field.m_Type = fields[i + 3].m_Type + "[]"
+                    continue                
                 name, type = field.m_Name, translate_type(
                     field.m_Type, typenames=classname_nodes | import_defs
                 )
@@ -518,7 +604,9 @@ def __main__():
             try:
                 node = gen.get_nodes_as_json(asm, clz)
                 node = json.loads(node)
-                # https://github.com/UnityPy-Org/TypeTreeGeneratorAPI/pull/4                
+                # https://github.com/UnityPy-Org/TypeTreeGeneratorAPI/pull/4
+                if node and node[0]["m_Level"] != 0:
+                    node = Typetree_MonoBehaviour + node
                 typetree[clz] = node
             except Exception as e:
                 logger.warning(f"Skipping nodes for {asm}.{clz}: {e}")
