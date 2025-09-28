@@ -21,7 +21,7 @@ setuptools.setup(
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
     ],
-    install_requires=["typetreegeneratorapi", "UnityPy>=1.21"],
+    install_requires=["TypeTreeGeneratorAPIEx", "UnityPy>=1.21"],
     entry_points={
         "console_scripts": [
             "UnityPyTypetreeCodegen = UnityPyTypetreeCodegen.__main__:__main__"

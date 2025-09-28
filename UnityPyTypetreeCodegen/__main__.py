@@ -148,7 +148,7 @@ def UTTCGen_GetClass(src: MonoBehaviour | str) -> Type:
     return UTTCG_Classes.get(src, None)
 
 T = TypeVar("T")
-def UTTCGen_AsInstance(cls : Type[T], src: MonoBehaviour | ObjectReader) -> T:
+def UTTCGen_AsInstance(cls : Type[T], src: MonoBehaviour | ObjectReader, check_read : bool = True) -> T:
     """Instantiate a class from the typetree definition and the raw data.
 
     In most cases, this is the function you want to use.
@@ -157,13 +157,14 @@ def UTTCGen_AsInstance(cls : Type[T], src: MonoBehaviour | ObjectReader) -> T:
     Args:
         cls: The class to instantiate. This should be a class that has been decorated with the UTTCGen decorator.
         src (MonoBehaviour | ObjectReader): The MonoBehaviour instance or ObjectReader to read from.        
+        check_read (bool): Whether to check if all fields are read. Defaults to True.
 
     Returns:
         An instance of the class defined by the typetree.
     """
     if isinstance(src, MonoBehaviour):
         src = src.object_reader
-    raw_def = src.read_typetree(cls.__typetree__, check_read=False)
+    raw_def = src.read_typetree(cls.__typetree__, check_read=check_read)
     instance = cls(object_reader=src, **raw_def)
     return instance
 ''',
@@ -220,7 +221,6 @@ def translate_name(m_Name: str, **kwargs):
 from UnityPy import classes as UnityBuiltin
 from TypeTreeGeneratorAPI import TypeTreeNode
 from logging import getLogger
-from coloredlogs import install
 
 import os, shutil
 from typing import Dict, List
