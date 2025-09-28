@@ -465,48 +465,7 @@ def process_typetree(fullname_nodes: Dict[str, List[TypeTreeNode]], outdir: str)
 import re, logging
 from TypeTreeGeneratorAPI import TypeTreeGenerator
 
-def __main__():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--unity-version",
-        help="Unity version to use for typetree generation",
-        default="2022.3.21f1",
-    )
-    parser.add_argument(
-        "--filter",
-        help="Filter classnames by regex",
-        default=".*",
-    )
-    parser.add_argument(
-        "--json",
-        help="[JSON] Load tree dump in json format {str[fullname]: List[TypeTreeNode]},...",
-    )
-    parser.add_argument(
-        "--asm-dir",
-        help="[Asm] Load typetree dump from game assembly DLL folder",
-        type=str
-    )
-    parser.add_argument(
-        "--il2cpp",
-        help="[IL2CPP] Load typetree dump from IL2CPP binaries",
-        type=str
-    )
-    parser.add_argument(
-        "--metadata",
-        help="[IL2CPP] Load typetree dump from metadata files",
-        type=str
-    )
-    parser.add_argument(
-        "--log-level",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        default="WARNING",
-    )
-    parser.add_argument(
-        "--outdir",
-        help="Output directory for generated code",
-        default="generated",
-    )
-    args = parser.parse_args()
+def __main__(args):
     logging.basicConfig(level=args.log_level)
     shutil.rmtree(args.outdir, ignore_errors=True)
     os.makedirs(args.outdir, exist_ok=True)
@@ -556,4 +515,45 @@ def __main__():
 import sys
 
 if __name__ == "__main__":
-    sys.exit(__main__())
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--unity-version",
+        help="Unity version to use for typetree generation",
+        default="2022.3.21f1",
+    )
+    parser.add_argument(
+        "--filter",
+        help="Filter classnames by regex",
+        default=".*",
+    )
+    parser.add_argument(
+        "--json",
+        help="[JSON] Load tree dump in json format {str[fullname]: List[TypeTreeNode]},...",
+    )
+    parser.add_argument(
+        "--asm-dir",
+        help="[Asm] Load typetree dump from game assembly DLL folder",
+        type=str
+    )
+    parser.add_argument(
+        "--il2cpp",
+        help="[IL2CPP] Load typetree dump from IL2CPP binaries",
+        type=str
+    )
+    parser.add_argument(
+        "--metadata",
+        help="[IL2CPP] Load typetree dump from metadata files",
+        type=str
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default="WARNING",
+    )
+    parser.add_argument(
+        "--outdir",
+        help="Output directory for generated code",
+        default="generated",
+    )
+    args = parser.parse_args()    
+    sys.exit(__main__(args))
