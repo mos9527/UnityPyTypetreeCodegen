@@ -17,11 +17,13 @@ pip install UnityPyTypetreeCodegen
 ### Generating code
 - You can generate code from a TypeTree JSON dump generated with https://github.com/K0lb3/TypeTreeGenerator
 ```bash
-UnityPyTypetreeCodegen --json "path_to_typetree_json_dump" --output "generated_moudle_path"
+UnityPyTypetreeCodegen --json "path_to_typetree_json_dump" --output "generated_module_path"
 ```
-- Or dump the TypeTree using https://github.com/UnityPy-Org/TypeTreeGeneratorAPI automatically (WIP)
+- Or dump the TypeTree from ourselves from Unity assemblies (mono dlls)
 ```bash
-UnityPyTypetreeCodegen --files "path_to_Assembly-CSharp_and_other_mono_dlls" --output "generated_moudle_path"
+UnityPyTypetreeCodegen --asm-dir "path/to/Managed/DLLs" --output "generated_module_path"
+# or with IL2CPP
+UnityPyTypetreeCodegen --il2cpp "path/to/il2cpp.so" --metadata "path/to/global-metadata.dat" --output "generated_module_path"
 ```
 - The emitted module will be structured like this
 ```
