@@ -55,7 +55,7 @@ BASE_TYPE_MAP = {
     "Object": "object",    
     "Type": "type",
     "MethodInfo": "object",
-    "PropertyInfo": "object",
+    "PropertyInfo": "object",    
 }
 Typetree_MonoBehaviour = [
     {
@@ -312,22 +312,33 @@ logger = getLogger("codegen")
 
 
 def translate_type(
-    m_Type: str, strip=False, fallback=True, typenames: dict = dict(), **kwargs
+    m_Type: str, strip=False, fallback=True, typenames: dict = dict(), feild_nexts : list = [], parent_name = None
 ):
+    if m_Type == parent_name:
+        return 'object' # XXX Recusrive. Python doesn't like those
     if m_Type in BASE_TYPE_MAP:
         return BASE_TYPE_MAP[m_Type]
     if getattr(UnityBuiltin, m_Type, None):
         return m_Type
     if m_Type in typenames:
         return m_Type
-    if m_Type.endswith("[]"):
-        m_Type = translate_type(m_Type[:-2], strip, fallback, typenames)
+    if m_Type.endswith("[]") or m_Type == 'List`1':        
+        if feild_nexts:
+            m_Type = translate_type(feild_nexts[3].m_Type, strip, fallback, typenames, feild_nexts, parent_name)
+        elif m_Type.endswith("[]") :
+            m_Type = m_Type[:-2]
+        else:
+            m_Type = None
         if not strip:
-            return f"List[{m_Type}]"
+            if m_Type:
+                return f"List[{m_Type}]"
+            else:
+                logger.warning(f"Unknown list type of element {m_Type}, using fallback")
+                return 'list'
         else:
             return m_Type
     if m_Type.startswith("PPtr<"):
-        m_Type = translate_type(m_Type[5:-1], strip, fallback, typenames)
+        m_Type = translate_type(m_Type[5:-1], strip, fallback, typenames, feild_nexts, parent_name)
         if not strip:
             return f"PPtr[{m_Type}]"
         else:
@@ -411,7 +422,7 @@ def process_namespace(
     # Emit by topo order
     graph = {
         clazz: {
-            translate_type(field.m_Type, strip=True, fallback=False) for field in fields
+            translate_type(field.m_Type, strip=True, fallback=False, feild_nexts=fields[i:]) for (i,field) in enumerate(fields)
         }
         for clazz, fields in classname_nodes.items()
     }
@@ -420,7 +431,7 @@ def process_namespace(
 
     logger.info(f"Subpass 2: Generating code for {namespace}")
     dp = defaultdict(lambda: -1)
-    for clazz in topo:
+    for clazz in topo:        
         fullname = f"{namespace}.{clazz}" if namespace else clazz
         fields = classname_nodes.get(clazz, None)
         if not fields:
@@ -443,7 +454,7 @@ def process_namespace(
         emit_line(f"@UTTCGen('{fullname}', {clazz_typetree})")
         # Heuristic: If there is a lvl1 and a lvl0 field, it's a subclass
         if lvl1 and lvl0:
-            parent = translate_type(fields[0].m_Type, strip=True, fallback=False)
+            parent = translate_type(fields[0].m_Type, strip=True, fallback=False, feild_nexts=fields[0:], parent_name=clazz)
             emit_line(f"class {translate_name(clazz)}({translate_name(parent)}):")
             if dp[parent] == -1:
                 # Reuse parent's fields with best possible effort
@@ -462,7 +473,7 @@ def process_namespace(
                     # Skip parent fields at lvl1
                     continue                
                 name, type = field.m_Name, translate_type(
-                    field.m_Type, typenames=classname_nodes | import_defs
+                    field.m_Type, typenames=classname_nodes | import_defs, feild_nexts=fields[i:], parent_name=clazz
                 )
                 emit_line(f"\t{declare_field(name, type, field.m_Type)}")
                 clazz_fields.append((name, type, field.m_Type))
@@ -471,11 +482,11 @@ def process_namespace(
         else:
             # No inheritance
             emit_line(f"class {clazz}:")
-            for field in fields:
+            for i, field in enumerate(fields):
                 if field.m_Level > 1:
                     continue # Nested
                 name, type = field.m_Name, translate_type(
-                    field.m_Type, typenames=classname_nodes | import_defs
+                    field.m_Type, typenames=classname_nodes | import_defs, feild_nexts=fields[i:], parent_name=clazz
                 )
                 emit_line(f"\t{declare_field(name, type, field.m_Type)}")
                 clazz_fields.append((name, type))
